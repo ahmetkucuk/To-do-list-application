@@ -1,0 +1,188 @@
+package devgui;
+
+import taskEntry.Category;
+import taskEntry.Task;
+import taskEntry.Priority;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+import org.dom4j.Document;
+import org.dom4j.DocumentHelper;
+import org.dom4j.Element;
+import org.dom4j.io.OutputFormat;
+import org.dom4j.io.SAXReader;
+import org.dom4j.io.XMLWriter;
+
+/**
+ * Only save and restore are public methods to provide save and restore functions.
+ * @author Jingxiao Zhang
+ * @author Daniel S. McCain
+ *
+ */
+public class XMLOperation {
+    private Document doc;
+    private String filename;
+    /**
+     * Create an XMLOperation object.<br/>
+     * If the task file exists, load it. Otherwise create one with root node taskList.<br/>
+     * The default file path is ./data.xml*/
+    public XMLOperation(){
+        filename = "./data.xml";
+        File fTaskList = new File(filename);
+        // If the file is not existed create a new task file
+        if(!fTaskList.exists()){
+            try {
+                fTaskList.createNewFile();
+                initDoc();
+                write2File(filename);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else {
+            doc = this.load(filename);
+        }
+    }
+
+    public XMLOperation(String filename){
+        // If the file is not existed create a new task file
+        this.filename = filename;
+        File fTaskList = new File(filename);
+        if(!fTaskList.exists()){
+            try {
+                fTaskList.createNewFile();
+                initDoc();
+                write2File(filename);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else {
+            doc = this.load(filename);
+        }
+    }
+    private void initDoc(){
+        doc = DocumentHelper.createDocument();
+        doc.clearContent();
+        doc.addElement("taskList");
+    }
+
+    /**
+     * Clear the content in the doc object and put the current tasks into doc.<br/>
+     * Write doc into local XML file*/
+    public void save(List<Task> tasks){
+        initDoc();
+        for (Task it : tasks){
+            addTask(it);
+        }
+        write2File(filename);
+    }
+    @SuppressWarnings("unchecked")
+    private List<Task> getTaskList(){
+        List<Task> tasks = new ArrayList<Task>();
+        List<Element> TaskList = doc.getRootElement().selectNodes("task");
+        //int id = 0;
+        for (Element e : TaskList){
+            tasks.add(this.getTask(e));//.add(this.getTask(e));
+            //  id++;
+        }
+        return tasks;
+    }
+
+    /**
+     * @param currentTask is a node "task". The sub-elements are attributes of the tasks.
+     * */
+    private Task getTask(Element currentTask){
+        // Get elements from the xml document
+        Element name = (Element)currentTask.selectNodes("name").get(0);
+        Element category = (Element)currentTask.selectNodes("category").get(0);
+        Element priority = (Element)currentTask.selectNodes("priority").get(0);
+        Element date = (Element)currentTask.selectNodes("date").get(0);
+        Element description = (Element)currentTask.selectNodes("description").get(0);
+        Element progress = (Element)currentTask.selectNodes("progress").get(0);
+        Element finished = (Element)currentTask.selectNodes("finished").get(0);
+
+        // Calendar need to be set separately
+        Calendar taskDate = Calendar.getInstance();
+        String[] strDateTime = date.getText().split(",");
+        taskDate.set(Integer.parseInt(strDateTime[0]),
+                Integer.parseInt(strDateTime[1]),
+                Integer.parseInt(strDateTime[2]),
+                Integer.parseInt(strDateTime[3]),
+                Integer.parseInt(strDateTime[4]));
+
+        Category taskCategory = Category.valueOf(category.getText());
+        Priority taskPriority = Priority.valueOf(priority.getText());
+
+        int taskProgress = Integer.parseInt(progress.getText());
+
+        return new Task(name.getText(),
+                taskCategory,
+                taskPriority,
+                taskDate,
+                description.getText(),
+                taskProgress,
+                Boolean.parseBoolean(finished.getTextTrim()));
+    }
+    /**
+     * write2File
+     * Write doc into a local xml file
+     * @param filename name of the xml file
+     */
+    private void write2File(String filename){
+        try {
+            OutputFormat format = OutputFormat.createPrettyPrint();
+            XMLWriter writer = new XMLWriter(new FileOutputStream(new File(filename)),
+                    format);
+            writer.write(doc);
+            writer.close();
+        }catch(Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+   /**
+    * Restore from the file. The file name is set when create XMLOperation instance.
+    * The task ID is generated by the sequence of the elements in XML file.
+    * Update the view when the data is restored so that the presented tasks are consistent with stored model.
+    * @return A HashMap of the tasks in the stored file.
+    * */
+    public List<Task> restore(){
+        return this.getTaskList();
+    }
+    /**
+     * Load the existing xml file*/
+    private Document load(String filename) {
+        Document document = null;
+        try{
+            SAXReader saxReader = new SAXReader();
+            document = saxReader.read(new File(filename));
+        } catch (Exception ex){
+            ex.printStackTrace();
+        }
+        return document;
+    }
+    /**
+     * addTask Add an task into the xml file.
+     * Each attribute of the task is stored as an element in the xml file
+     * @param it the task to be added*/
+    private void addTask(Task it){
+        Element taskList = doc.getRootElement();
+        Element task = taskList.addElement("task");
+        //task.addElement("id").setText(id.toString());
+        task.addElement("name").setText(it.getName());
+        task.addElement("category").setText(it.getCategory().toString());
+        task.addElement("priority").setText(it.getPriority().toString());
+        task.addElement("description").setText(it.getDescription());
+        task.addElement("progress").setText(String.valueOf(it.getProgress()));
+        task.addElement("finished").setText(it.getFinished().toString());
+
+        Calendar cl = it.getDate();
+        String date = cl.get(Calendar.YEAR)+","+cl.get(Calendar.MONTH)+","
+            +cl.get(Calendar.DAY_OF_MONTH)+","+cl.get(Calendar.HOUR_OF_DAY)+","
+            +cl.get(Calendar.MINUTE);
+        task.addElement("date").setText(date);
+    }
+}
